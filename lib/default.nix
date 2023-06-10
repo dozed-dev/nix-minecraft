@@ -76,4 +76,15 @@ rec {
       files = filterAttrs seive (readDir dirPath);
     in
     filterAttrs (n: v: v != { }) (mapAttrs' collect files);
+
+  # Get a given path's (usually a modpack) files at a specific subdirectory
+  # (e.g. "config"), and return them in the format expected by the
+  # files/symlinks module options.
+  collectFilesAt = let
+    mapListToAttrs = fn: fv: list:
+      lib.listToAttrs (map (x: lib.nameValuePair (fn x) (fv x)) list);
+  in path: prefix:
+    mapListToAttrs
+    (x: builtins.unsafeDiscardStringContext (lib.removePrefix "${path}/" x))
+    (lib.id) (lib.filesystem.listFilesRecursive "${path}/${prefix}");
 })
