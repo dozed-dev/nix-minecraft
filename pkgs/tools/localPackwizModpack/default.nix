@@ -4,21 +4,14 @@ let
   localPackwizModpack =
     { pname ? "packwiz-pack"
     , version ? ""
-    , url
+    , modpackPath
     , packHash ? ""
       # Either 'server' or 'both' (to get client mods as well)
     , side ? "server"
-
-      # The derivation passes through a 'manifest' expression, that includes
-      # useful metadata (such as MC version).
-      # By default, if you access it, IFD will be used. If you want to use
-      # 'manifest' without IFD, you can alternatively pass a manifestHash, that
-      # allows us to fetch it with builtins.fetchurl instead.
-    , manifestHash ? null
     , ...
     }@args:
 
-    stdenvNoCC.mkDerivation (finalAttrs: {
+    stdenvNoCC.mkDerivation (finalAttrs: rec {
       inherit pname version;
 
       packwizInstaller = fetchurl rec {
@@ -35,18 +28,19 @@ let
         hash = "sha256-qPuyTcYEJ46X9GiOgtPZGjGLmO/AjV2/y8vKtkQ9EWw=";
       };
 
+      packTomlPath = "${modpackPath}/pack.toml";
+
       dontUnpack = true;
 
       buildInputs = [ jre_headless jq moreutils curl cacert ];
 
       buildPhase = ''
-        curl -L "${url}" > pack.toml
         java -jar "$packwizInstallerBootstrap" \
           --bootstrap-main-jar "$packwizInstaller" \
           --bootstrap-no-update \
           --no-gui \
           --side "${side}" \
-          "${url}"
+          "$packTomlPath"
       '';
 
       installPhase = ''
@@ -70,16 +64,7 @@ let
           # Pack manifest as a nix expression
           # If manifestHash is not null, then we can do this without IFD.
           # Otherwise, fallback to IFD.
-          manifest = lib.importTOML (
-            if manifestHash != null then
-              builtins.fetchurl
-                {
-                  inherit url;
-                  sha256 = manifestHash;
-                }
-            else
-              "${drv}/pack.toml"
-          );
+          manifest = lib.importTOML packTomlPath;
 
           # Adds an attribute set of files to the derivation.
           # Useful to add server-specific mods not part of the pack.
